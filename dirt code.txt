@@ -1,0 +1,58 @@
+import cv2
+import numpy as np
+import time
+import sys
+
+cap = cv2.VideoCapture(1)
+
+lower = np.array([0, 0, 150])
+upper = np.array([180, 50, 255])
+threshold_value = 1000
+
+start_time = time.time()
+
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    cv2.imshow('Original Frame', frame)
+
+    x1, y1, w1, h1 = int(frame.shape[1] * 0.27), int(frame.shape[0] * 0.27), int(frame.shape[1] * 0.5), int(frame.shape[0] * 0.5)
+    roi = frame[y1:y1 + h1, x1:x1 + w1]
+
+    hsv_image = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(hsv_image, lower, upper)
+
+    kernel = np.ones((5, 5), np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
+    contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    error_found = False
+
+    if contours:
+        for contour in contours:
+            if cv2.contourArea(contour) > threshold_value:
+                error_found = True
+                contour[:, 0, 0] += x1
+                contour[:, 0, 1] += y1
+                cv2.drawContours(frame, [contour], -1, (255, 0, 0), 2)
+
+    current_time = time.time()
+    if current_time - start_time >= 1:
+        if error_found:
+            print("dirt found")
+        else:
+            print("dirt not found")
+        sys.stdout.flush()
+        start_time = current_time
+
+    cv2.imshow('Processed Frame', frame)
+
+    if cv2.waitKey(1) == 27:
+        break
+
+cap.release()
+cv2.destroyAllWindows()
